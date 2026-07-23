@@ -144,7 +144,11 @@ html, body {
   flex-direction: column;
   gap: 4px;
   overflow: auto;
-  padding-right: 4px;
+  padding: 8px;
+  padding-right: 6px;
+  background: rgba(3, 6, 12, 0.82);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  backdrop-filter: blur(8px);
 }
 
 #nav button.body-btn {
@@ -396,17 +400,38 @@ label.ctrl select,
 }
 
 .help {
+  /* Floating help competed with the transport deck — keys live in Display panel instead. */
+  display: none;
+}
+
+/* Mobile drawer toggles */
+#mobile-toggles {
+  display: none;
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 96px;
-  z-index: 15;
-  font-size: 10px;
-  color: var(--mute);
-  letter-spacing: 0.08em;
+  top: 58px;
+  left: 10px;
+  right: 10px;
+  z-index: 30;
+  gap: 6px;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   pointer-events: none;
-  text-align: center;
-  opacity: 0.85;
+}
+#mobile-toggles button {
+  pointer-events: auto;
+  background: rgba(6, 12, 24, 0.92);
+  color: var(--ink);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  font: 11px var(--mono);
+  padding: 7px 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+#mobile-toggles button.active {
+  border-color: var(--accent);
+  background: rgba(14, 40, 70, 0.95);
+  color: #fff;
 }
 
 #errbox {
@@ -442,6 +467,7 @@ label.ctrl select,
   transition: opacity 0.15s;
   padding: 2px 5px;
   border: 1px solid transparent;
+  background: rgba(3, 6, 12, 0.55);
 }
 
 .bodylabel.on {
@@ -451,7 +477,7 @@ label.ctrl select,
 .bodylabel.sel {
   color: #fff;
   border-color: rgba(56, 189, 248, 0.5);
-  background: rgba(8, 20, 40, 0.75);
+  background: rgba(8, 20, 40, 0.85);
 }
 
 .hud-hidden #nav,
@@ -459,15 +485,74 @@ label.ctrl select,
 .hud-hidden #transport,
 .hud-hidden #topbar .chip,
 .hud-hidden .help,
-.hud-hidden .brand .sub {
+.hud-hidden .brand .sub,
+.hud-hidden #mobile-toggles {
   display: none !important;
 }
 
-@media (max-width: 900px) {
-  #nav { width: 120px; }
-  #dossier { width: 260px; }
-  .center-transport { min-width: 0; }
-  #transport { grid-template-columns: 1fr; }
-  #transport .panel:first-child,
+/* Tablet */
+@media (max-width: 1024px) {
+  #nav { width: 140px; }
+  #dossier { width: 280px; }
+  .help { display: none; }
   #transport .panel:last-child { display: none; }
+}
+
+/* Phone — drawers, not permanent side chrome */
+@media (max-width: 720px) {
+  #mobile-toggles { display: flex; top: 88px; }
+
+  #topbar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    align-items: flex-start;
+  }
+  #topbar .chip { font-size: 10px; padding: 4px 7px; }
+  .brand .sub { display: none; }
+  .clock {
+    font-size: 10px;
+    width: 100%;
+    text-align: left;
+    order: 10;
+  }
+  #topbar .spacer { display: none; }
+
+  #nav {
+    display: none;
+    top: 128px;
+    left: 10px;
+    right: auto;
+    bottom: auto;
+    width: min(200px, 70vw);
+    max-height: min(50vh, 400px);
+    z-index: 40;
+  }
+  body.show-nav #nav { display: flex; }
+
+  #dossier {
+    display: none;
+    top: 128px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: min(48vh, 360px);
+    z-index: 40;
+  }
+  body.show-dossier #dossier { display: block; }
+
+  #transport {
+    grid-template-columns: 1fr;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+  #transport .panel:first-child,
+  #transport .panel:last-child {
+    display: none;
+  }
+  .center-transport { min-width: 0; }
+  .help { display: none; }
+
+  #stage { bottom: 0; }
 }

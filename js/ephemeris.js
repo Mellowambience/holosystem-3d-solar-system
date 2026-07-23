@@ -376,8 +376,8 @@ export function formatAU(v) {
 }
 
 export function formatKm(v) {
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)} M km`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)} k km`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}×10⁶ km`;
+  if (v >= 1e3) return `${Math.round(v).toLocaleString('en-US')} km`;
   return `${v.toFixed(0)} km`;
 }
 

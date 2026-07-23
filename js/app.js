@@ -112,22 +112,25 @@ function planetTexture(kind, baseHex) {
         g = g0 * (0.75 + 0.35 * n);
         b = b0 * (0.8 + 0.3 * n);
       } else if (kind === 'earth') {
-        // continents vs ocean
-        const land = fbm(u * 5 + 1.7, v * 3.2, 6);
+        // continents vs ocean — slightly smoother than raw multi-octave noise
+        const land = fbm(u * 4.2 + 1.7, v * 2.6, 5);
+        const detail = fbm(u * 9, v * 5, 3);
         const ice = Math.abs(lat) > 1.15 ? 1 : Math.abs(lat) > 1.0 ? (Math.abs(lat) - 1.0) / 0.15 : 0;
-        if (land > 0.52) {
-          r = 50 + land * 80;
-          g = 90 + land * 90;
-          b = 40 + land * 30;
+        if (land > 0.54) {
+          const veg = 0.55 + 0.45 * detail;
+          r = 42 + land * 55;
+          g = 85 + land * 70 * veg;
+          b = 38 + land * 28;
         } else {
-          r = 15 + (1 - land) * 20;
-          g = 50 + (1 - land) * 60;
-          b = 120 + (1 - land) * 80;
+          const deep = (0.54 - land) / 0.54;
+          r = 12 + deep * 18;
+          g = 55 + deep * 50;
+          b = 130 + deep * 70;
         }
         if (ice > 0) {
           r = r * (1 - ice) + 230 * ice;
-          g = g * (1 - ice) + 240 * ice;
-          b = b * (1 - ice) + 250 * ice;
+          g = g * (1 - ice) + 238 * ice;
+          b = b * (1 - ice) + 248 * ice;
         }
       } else if (kind === 'mars') {
         n = fbm(u * 7, v * 4, 5);
@@ -231,9 +234,10 @@ function ringTexture(tint = 0xe6d3a3) {
 function init() {
   const stage = document.getElementById('stage');
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x03060c, 0.0016);
+  // Light fog so far-out overview still reads orbits/planets
+  scene.fog = new THREE.FogExp2(0x03060c, 0.00055);
 
-  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 20000);
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.05, 50000);
   camera.position.set(0, 28, 62);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -241,20 +245,22 @@ function init() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.12;
   stage.appendChild(renderer.domElement);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.06;
   controls.minDistance = 0.4;
-  controls.maxDistance = 4000;
+  controls.maxDistance = 12000;
   controls.target.set(0, 0, 0);
 
-  // Lights — sun is the only real source; ambient for unlit night sides slightly
-  const ambient = new THREE.AmbientLight(0x1a2740, 0.22);
+  // Key sun light + enough fill that night sides still read form (not pure black)
+  const ambient = new THREE.AmbientLight(0x6b8cbe, 0.38);
   scene.add(ambient);
-  const sunLight = new THREE.PointLight(0xfff2d0, 2.8, 0, 0);
+  const hemi = new THREE.HemisphereLight(0x9ec9ff, 0x0a0c14, 0.35);
+  scene.add(hemi);
+  const sunLight = new THREE.PointLight(0xfff2d0, 3.2, 0, 0);
   sunLight.name = 'sunLight';
   scene.add(sunLight);
 
@@ -378,6 +384,7 @@ function buildSun() {
     group: mesh,
     isSun: true,
     radiusScene: r,
+    baseRadius: r,
     labelEl: null,
   });
 }
@@ -413,10 +420,11 @@ function buildPlanet(def) {
   const tex = planetTexture(kindFor(def), def.color);
   const mat = new THREE.MeshStandardMaterial({
     map: tex,
-    roughness: def.id === 'venus' ? 0.55 : 0.85,
-    metalness: 0.05,
-    emissive: def.id === 'venus' ? new THREE.Color(0x221100) : new THREE.Color(0x000000),
-    emissiveIntensity: 0.15,
+    roughness: def.id === 'venus' ? 0.55 : 0.82,
+    metalness: 0.04,
+    // faint emissive so terminator/night still shows surface structure
+    emissive: new THREE.Color(def.color).multiplyScalar(0.08),
+    emissiveIntensity: 0.35,
   });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 48), mat);
   // axial tilt
@@ -480,10 +488,16 @@ function buildPlanet(def) {
     group.add(ring);
   }
 
-  // selection ring
+  // selection marker — thin billboard ring (NOT a thick torus that reads as planetary rings)
   const sel = new THREE.Mesh(
-    new THREE.TorusGeometry(r * 1.35, r * 0.025, 8, 64),
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.0 })
+    new THREE.RingGeometry(r * 1.28, r * 1.38, 64),
+    new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
   );
   sel.rotation.x = Math.PI / 2;
   group.add(sel);
@@ -501,6 +515,7 @@ function buildPlanet(def) {
     sel,
     orbitLine,
     radiusScene: r,
+    baseRadius: r,
     isPlanet: true,
     labelEl: null,
   });
@@ -525,8 +540,14 @@ function buildMoon(def) {
   group.add(mesh);
 
   const sel = new THREE.Mesh(
-    new THREE.TorusGeometry(r * 1.5, r * 0.04, 8, 48),
-    new THREE.MeshBasicMaterial({ color: 0xa5f3fc, transparent: true, opacity: 0.0 })
+    new THREE.RingGeometry(r * 1.4, r * 1.55, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xa5f3fc,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
   );
   sel.rotation.x = Math.PI / 2;
   group.add(sel);
@@ -600,25 +621,33 @@ function rebuildOrbits() {
 }
 
 function rescaleBodies() {
-  // Rebuild radii for sun/planets; moons relative
+  // Scale planet visuals in-place — never dispose/recreate geometries (WebGL thrash
+  // under bloom caused VALIDATE_STATUS / context-lost spam). Do NOT scale the whole
+  // group (moons are children; their local orbits would double-scale).
   const sunRec = bodies.get('sun');
   if (sunRec) {
     const r = visualRadius(SUN.radiusKm) * 1.8;
+    const s = r / (sunRec.baseRadius || r);
     sunRec.radiusScene = r;
-    sunRec.mesh.geometry.dispose();
-    sunRec.mesh.geometry = new THREE.SphereGeometry(r, 64, 64);
+    sunRec.mesh.scale.setScalar(s);
   }
   for (const p of PLANETS) {
     const rec = bodies.get(p.id);
     if (!rec) continue;
     const r = visualRadius(p.radiusKm);
+    const s = r / (rec.baseRadius || r);
     rec.radiusScene = r;
-    rec.mesh.geometry.dispose();
-    rec.mesh.geometry = new THREE.SphereGeometry(r, 48, 48);
-    // atmosphere / clouds / rings approximate — leave; selection ring update
-    if (rec.sel) {
-      rec.sel.geometry.dispose();
-      rec.sel.geometry = new THREE.TorusGeometry(r * 1.35, r * 0.025, 8, 64);
+    // scale only visual children, not moon groups
+    for (const child of rec.group.children) {
+      if (child === rec.mesh || child === rec.sel || child === rec.clouds) {
+        child.scale.setScalar(s);
+      } else if (child.isMesh && child.geometry?.type === 'RingGeometry' && child !== rec.sel) {
+        // planet rings (saturn/uranus)
+        child.scale.setScalar(s);
+      } else if (child.isMesh && child.material && child.material.side === THREE.BackSide) {
+        // atmosphere shell
+        child.scale.setScalar(s);
+      }
     }
   }
 }
@@ -659,8 +688,9 @@ function updateBodies(dt) {
     if (!state.showMoons) continue;
 
     const ang = ((state.jd - 2451545.0) / m.period) * Math.PI * 2 + ((m.M0 || 0) * Math.PI) / 180;
-    // separation in scene units: fraction of parent radius * aParentRadii, clamped readable
-    const sep = Math.max(parent.radiusScene * 2.2, parent.radiusScene * (m.aParentRadii * 0.18));
+    // separation in parent-local units from current visual radius
+    const pr = parent.radiusScene || 1;
+    const sep = Math.max(pr * 2.4, pr * (m.aParentRadii * 0.2));
     rec.group.position.set(Math.cos(ang) * sep, Math.sin(ang * 0.02) * sep * 0.05, Math.sin(ang) * sep);
     rec.mesh.rotation.y += dt * 0.4;
   }
@@ -711,9 +741,19 @@ function updateSelectionVisual() {
   for (const [id, rec] of bodies) {
     if (!rec.sel) continue;
     const on = id === state.selectedId;
-    rec.sel.material.opacity = on ? 0.85 : 0.0;
-    if (on) rec.sel.rotation.z += 0.01;
+    rec.sel.material.opacity = on ? 0.9 : 0.0;
+    if (on) {
+      // face camera so the ring never reads as a planetary ring plane
+      rec.sel.lookAt(camera.position);
+    }
   }
+}
+
+function systemOverviewDistance() {
+  // Frame outermost classical planet in current scale mode.
+  const mode = SCALE_MODES[state.scaleMode];
+  const outer = mode.mapA(30.07); // Neptune a
+  return Math.max(outer * 1.65, 40);
 }
 
 function focusBody(id, instant = false) {
@@ -721,12 +761,25 @@ function focusBody(id, instant = false) {
   if (!rec) return;
   state.focusId = id;
   rec.group.getWorldPosition(_v);
-  const r = rec.radiusScene || 1;
-  const dist = Math.max(r * 6.5, 2.5);
-  // keep current viewing direction if possible
-  _v2.copy(camera.position).sub(controls.target);
-  if (_v2.lengthSq() < 1e-6) _v2.set(0, 0.3, 1);
-  _v2.normalize().multiplyScalar(dist);
+
+  let dist;
+  if (id === 'sun') {
+    // System overview — not a surface close-up of the photosphere
+    dist = systemOverviewDistance();
+    _v.set(0, 0, 0);
+  } else {
+    const r = rec.radiusScene || 1;
+    dist = Math.max(r * 7.2, 2.8);
+  }
+
+  // Prefer a high 3/4 view on first focus / sun overview
+  if (id === 'sun' || _v2.copy(camera.position).sub(controls.target).lengthSq() < 1e-6) {
+    _v2.set(0.55, 0.42, 1).normalize().multiplyScalar(dist);
+  } else {
+    _v2.copy(camera.position).sub(controls.target);
+    if (_v2.lengthSq() < 1e-6) _v2.set(0, 0.35, 1);
+    _v2.normalize().multiplyScalar(dist);
+  }
   const destCam = _v.clone().add(_v2);
   const destTarget = _v.clone();
 
@@ -744,7 +797,6 @@ function focusBody(id, instant = false) {
       toT: destTarget,
     };
   }
-  // also select
   selectBody(id);
 }
 
@@ -757,6 +809,13 @@ function selectBody(id) {
     b.classList.toggle('active', b.dataset.id === id);
   });
   renderDossier(rec);
+  // on narrow screens: after picking a body from the list, show dossier + hide nav
+  if (window.matchMedia('(max-width: 720px)').matches) {
+    document.body.classList.remove('show-nav');
+    document.body.classList.add('show-dossier');
+    document.getElementById('btn-tog-nav')?.classList.remove('active');
+    document.getElementById('btn-tog-dossier')?.classList.add('active');
+  }
 }
 
 function renderDossier(rec) {
@@ -1032,6 +1091,22 @@ function bindEvents() {
       e.preventDefault();
       map[e.key]();
     }
+  });
+
+  // Mobile panel drawers
+  const navBtn = document.getElementById('btn-tog-nav');
+  const dosBtn = document.getElementById('btn-tog-dossier');
+  navBtn?.addEventListener('click', () => {
+    document.body.classList.toggle('show-nav');
+    document.body.classList.remove('show-dossier');
+    navBtn.classList.toggle('active', document.body.classList.contains('show-nav'));
+    dosBtn?.classList.remove('active');
+  });
+  dosBtn?.addEventListener('click', () => {
+    document.body.classList.toggle('show-dossier');
+    document.body.classList.remove('show-nav');
+    dosBtn.classList.toggle('active', document.body.classList.contains('show-dossier'));
+    navBtn?.classList.remove('active');
   });
 }
 

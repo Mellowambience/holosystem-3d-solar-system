@@ -23,20 +23,25 @@
   <div id="labels" class="label-layer"></div>
 
   <header id="topbar">
-    <div class="brand">
-      <div class="mark">Holosystem</div>
-      <div class="sub">Keplerian · Local-first · J2000 elements</div>
-    </div>
-    <div class="chip" id="wx-chip"><span class="dot warn"></span> TELEMETRY INIT</div>
-    <div class="chip"><span class="dot"></span> EPHEMERIS ONLINE</div>
-    <div class="spacer"></div>
-    <div class="clock">
-      <div id="clock-main">—</div>
-      <div class="epoch" id="clock-epoch">—</div>
-    </div>
-  </header>
+      <div class="brand">
+        <div class="mark">Holosystem</div>
+        <div class="sub">Keplerian · Local-first · J2000 elements</div>
+      </div>
+      <div class="chip" id="wx-chip"><span class="dot warn"></span> TELEMETRY INIT</div>
+      <div class="chip"><span class="dot"></span> EPHEMERIS ONLINE</div>
+      <div class="spacer"></div>
+      <div class="clock">
+        <div id="clock-main">—</div>
+        <div class="epoch" id="clock-epoch">—</div>
+      </div>
+    </header>
 
-  <nav id="nav" aria-label="Bodies"></nav>
+    <div id="mobile-toggles" aria-label="Panel toggles">
+      <button type="button" id="btn-tog-nav">Bodies</button>
+      <button type="button" id="btn-tog-dossier">Dossier</button>
+    </div>
+
+    <nav id="nav" aria-label="Bodies"></nav>
 
   <aside id="dossier" aria-live="polite">
     <header>
@@ -61,12 +66,15 @@
         <span id="scaleDesc" style="font-size:10px;color:var(--mute);line-height:1.4"></span>
       </div>
       <div class="row" style="margin-top:10px">
-        <label class="ctrl"><input type="checkbox" id="tog-orbits" checked /> Orbits</label>
-        <label class="ctrl"><input type="checkbox" id="tog-labels" checked /> Labels</label>
-        <label class="ctrl"><input type="checkbox" id="tog-moons" checked /> Moons</label>
-        <label class="ctrl"><input type="checkbox" id="tog-bloom" checked /> Bloom</label>
-      </div>
-    </div>
+              <label class="ctrl"><input type="checkbox" id="tog-orbits" checked /> Orbits</label>
+              <label class="ctrl"><input type="checkbox" id="tog-labels" checked /> Labels</label>
+              <label class="ctrl"><input type="checkbox" id="tog-moons" checked /> Moons</label>
+              <label class="ctrl"><input type="checkbox" id="tog-bloom" checked /> Bloom</label>
+            </div>
+            <div class="row" style="margin-top:8px;font-size:10px;color:var(--mute);line-height:1.45">
+              Drag orbit · scroll zoom · click body · 1–0 focus · Space pause · [ ] speed · F refocus · H HUD · N now
+            </div>
+          </div>
 
     <div class="panel center-transport">
       <div class="speed-read" id="speed-read">1.0 d/s</div>
