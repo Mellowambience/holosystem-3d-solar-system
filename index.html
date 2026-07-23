@@ -1,685 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sci-Fi Holographic HUD Solar System & Live Weather</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap');
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="HOLOSYSTEM — local-first Keplerian solar system instrument with real orbital elements, scale modes, and operator HUD." />
+  <title>HOLOSYSTEM · Keplerian Solar Instrument</title>
+  <link rel="stylesheet" href="./css/holo.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/"
     }
-    body {
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
-      background-color: #020617;
-      font-family: 'Share Tech Mono', monospace;
-      color: #38bdf8;
-    }
-    #canvas-container {
-      width: 100%;
-      height: 100%;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-    
-    .scanlines {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none;
-      background: linear-gradient(
-        to bottom,
-        rgba(255,255,255,0),
-        rgba(255,255,255,0) 50%,
-        rgba(0, 0, 0, 0.3) 50%,
-        rgba(0, 0, 0, 0.3)
-      );
-      background-size: 100% 4px;
-      z-index: 5;
-      opacity: 0.5;
-    }
-
-    .ui-overlay {
-      position: absolute;
-      top: 24px;
-      left: 24px;
-      z-index: 10;
-      pointer-events: none;
-    }
-    h1 {
-      font-family: 'Orbitron', sans-serif;
-      font-weight: 900;
-      font-size: 2.2rem;
-      letter-spacing: 4px;
-      color: #38bdf8;
-      text-transform: uppercase;
-      text-shadow: 0 0 15px rgba(56, 189, 248, 0.8), 0 0 30px rgba(56, 189, 248, 0.4);
-      margin-bottom: 4px;
-    }
-    p.subtitle {
-      font-size: 0.85rem;
-      color: #a5f3fc;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-    }
-    .hud-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 8px;
-      padding: 6px 12px;
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid #38bdf8;
-      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3), inset 0 0 12px rgba(56, 189, 248, 0.15);
-      border-radius: 4px;
-      font-size: 0.85rem;
-      color: #38bdf8;
-      text-transform: uppercase;
-    }
-    .hud-badge .dot {
-      width: 8px; height: 8px;
-      background-color: #22c55e;
-      border-radius: 50%;
-      box-shadow: 0 0 8px #22c55e;
-      animation: pulse 1.5s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    .controls-card {
-      position: absolute;
-      bottom: 24px;
-      right: 24px;
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid #38bdf8;
-      border-left: 4px solid #38bdf8;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
-      padding: 20px;
-      width: 320px;
-      z-index: 10;
-      max-height: 80vh;
-      overflow-y: auto;
-      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
-    }
-    .controls-card h3 {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 1.05rem;
-      letter-spacing: 2px;
-      margin-bottom: 14px;
-      color: #fde047;
-      border-bottom: 1px solid rgba(56, 189, 248, 0.3);
-      padding-bottom: 6px;
-      text-transform: uppercase;
-    }
-    .control-group {
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .control-group label {
-      font-size: 0.85rem;
-      color: #e2e8f0;
-      letter-spacing: 1px;
-    }
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 44px;
-      height: 20px;
-    }
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider-toggle {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #1e293b;
-      transition: .2s;
-      border: 1px solid #38bdf8;
-    }
-    .slider-toggle:before {
-      position: absolute;
-      content: "";
-      height: 12px; width: 12px;
-      left: 3px; bottom: 3px;
-      background-color: #38bdf8;
-      transition: .2s;
-    }
-    input:checked + .slider-toggle {
-      background-color: rgba(56, 189, 248, 0.2);
-    }
-    input:checked + .slider-toggle:before {
-      transform: translateX(24px);
-      background-color: #fde047;
-      box-shadow: 0 0 8px #fde047;
-    }
-    .speed-slider {
-      width: 100px;
-      accent-color: #38bdf8;
-    }
-    select.planet-select {
-      background: #0f172a;
-      color: #38bdf8;
-      border: 1px solid #38bdf8;
-      padding: 4px 8px;
-      font-family: 'Share Tech Mono', monospace;
-      cursor: pointer;
-      outline: none;
-    }
-  </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  
-  <!-- Post-Processing Scripts (Required Dependencies explicitly imported) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  }
+  </script>
 </head>
 <body>
+  <div id="errbox"></div>
+  <div id="stage"></div>
   <div class="scanlines"></div>
-  <div id="canvas-container"></div>
-  
-  <div class="ui-overlay">
-    <h1>HOLO SYSTEM</h1>
-    <p class="subtitle">Sci-Fi Cyberpunk HUD • Real-Time Weather Integration</p>
-    <div id="weatherStatus" class="hud-badge"><span class="dot"></span> LIVE WEATHER TELEMETRY ONLINE</div>
-  </div>
+  <div class="vignette"></div>
+  <div id="labels" class="label-layer"></div>
 
-  <div class="controls-card">
-    <h3>HUD COMMAND CENTER</h3>
-    <div class="control-group">
-      <label for="targetFocus">CAMERA TARGET</label>
-      <select id="targetFocus" class="planet-select">
-        <option value="Sun">Sun</option>
-        <option value="Mercury">Mercury</option>
-        <option value="Venus">Venus</option>
-        <option value="Earth" selected>Earth</option>
-        <option value="Mars">Mars</option>
-        <option value="Jupiter">Jupiter</option>
-        <option value="Saturn">Saturn</option>
-        <option value="Uranus">Uranus</option>
-        <option value="Neptune">Neptune</option>
-      </select>
+  <header id="topbar">
+    <div class="brand">
+      <div class="mark">Holosystem</div>
+      <div class="sub">Keplerian · Local-first · J2000 elements</div>
     </div>
-    <div class="control-group">
-      <label for="showHoloGrid">Hologram Grid FX</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="showHoloGrid" checked>
-        <span class="slider-toggle"></span>
-      </label>
+    <div class="chip" id="wx-chip"><span class="dot warn"></span> TELEMETRY INIT</div>
+    <div class="chip"><span class="dot"></span> EPHEMERIS ONLINE</div>
+    <div class="spacer"></div>
+    <div class="clock">
+      <div id="clock-main">—</div>
+      <div class="epoch" id="clock-epoch">—</div>
     </div>
-    <div class="control-group">
-      <label for="showWindVectors">Wind Stream Vectors</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="showWindVectors" checked>
-        <span class="slider-toggle"></span>
-      </label>
+  </header>
+
+  <nav id="nav" aria-label="Bodies"></nav>
+
+  <aside id="dossier" aria-live="polite">
+    <header>
+      <div class="kicker">Body</div>
+      <h2>Loading…</h2>
+    </header>
+  </aside>
+
+  <p class="help">
+    DRAG orbit · SCROLL zoom · CLICK body · 1–0 focus · SPACE pause · [ ] speed · F refocus · H HUD · N now
+  </p>
+
+  <footer id="transport">
+    <div class="panel">
+      <h3>Display</h3>
+      <div class="row">
+        <label class="ctrl">Scale
+          <select id="scaleMode"></select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <span id="scaleDesc" style="font-size:10px;color:var(--mute);line-height:1.4"></span>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="ctrl"><input type="checkbox" id="tog-orbits" checked /> Orbits</label>
+        <label class="ctrl"><input type="checkbox" id="tog-labels" checked /> Labels</label>
+        <label class="ctrl"><input type="checkbox" id="tog-moons" checked /> Moons</label>
+        <label class="ctrl"><input type="checkbox" id="tog-bloom" checked /> Bloom</label>
+      </div>
     </div>
-    <div class="control-group">
-      <label for="autoRotate">Orbit Motion</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="autoRotate" checked>
-        <span class="slider-toggle"></span>
-      </label>
+
+    <div class="panel center-transport">
+      <div class="speed-read" id="speed-read">1.0 d/s</div>
+      <div class="date-read" id="date-read">—</div>
+      <div class="row" style="justify-content:center">
+        <button type="button" id="btn-slower" title="Halve speed">⟦ slower</button>
+        <button type="button" id="btn-pause">Pause</button>
+        <button type="button" id="btn-faster" title="Double speed">faster ⟧</button>
+        <button type="button" id="btn-now">Now</button>
+      </div>
+      <div class="row" style="justify-content:center;margin-top:10px">
+        <label class="ctrl">Sim rate
+          <input type="range" id="speed" min="0" max="100" step="1" value="42" />
+        </label>
+      </div>
+      <div class="row" style="justify-content:center;margin-top:4px">
+        <span id="epoch-read" style="font-size:10px;color:var(--mute)"></span>
+      </div>
     </div>
-    <div class="control-group">
-      <label for="showClouds">Cloud System</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="showClouds" checked>
-        <span class="slider-toggle"></span>
-      </label>
+
+    <div class="panel">
+      <h3>Instrument</h3>
+      <div class="row" style="font-size:11px;color:var(--dim);line-height:1.5">
+        Mean J2000 Kepler elements · Newton-solved eccentric anomaly · Not a toy scale model — switch TRUE AU for linear distances. Radii exaggerated for readability in all modes.
+      </div>
+      <div class="row" style="margin-top:8px;font-size:10px;color:var(--mute)">
+        Vendor: three r160 · zero CDN runtime · open-meteo optional
+      </div>
     </div>
-    <div class="control-group">
-      <label for="showOrbits">Orbit Vectors</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="showOrbits" checked>
-        <span class="slider-toggle"></span>
-      </label>
-    </div>
-    <div class="control-group">
-      <label for="enableGlow">Neon Glow Bloom</label>
-      <label class="toggle-switch">
-        <input type="checkbox" id="enableGlow" checked>
-        <span class="slider-toggle"></span>
-      </label>
-    </div>
-    <div class="control-group">
-      <label for="rotSpeed">Simulation Speed</label>
-      <input type="range" id="rotSpeed" class="speed-slider" min="0.1" max="5" step="0.1" value="1">
-    </div>
-  </div>
+  </footer>
 
-  <script>
-    const container = document.getElementById('canvas-container');
-    const scene = new THREE.Scene();
-
-    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
-    camera.position.set(0, 5, 14);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 1.0;
-    controls.maxDistance = 400.0;
-
-    const textureLoader = new THREE.TextureLoader();
-
-    // Earth Map Textures
-    const earthMap = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
-    const cloudMap = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-clouds.png');
-
-    // Weather API
-    let realTimeWindSpeed = 16.0;
-    let realTimeCloudCover = 55.0;
-
-    async function fetchRealTimeEarthWeather() {
-      try {
-        const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current=temperature_2m,precipitation,cloud_cover,wind_speed_10m');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.current) {
-            realTimeWindSpeed = data.current.wind_speed_10m || 18.0;
-            realTimeCloudCover = data.current.cloud_cover || 55.0;
-
-            document.getElementById('weatherStatus').innerHTML = `
-              <span class="dot"></span> EARTH TELEMETRY: ${realTimeWindSpeed.toFixed(1)} KM/H WIND • ${realTimeCloudCover}% CLOUDS
-            `;
-          }
-        }
-      } catch (err) {
-        document.getElementById('weatherStatus').innerHTML = '<span class="dot"></span> EARTH TELEMETRY: ONLINE';
-      }
-    }
-    fetchRealTimeEarthWeather();
-
-    // ----------------------------------------------------
-    // PLANETARY DATA WITH CYBERPUNK HOLOGRAM COLORS
-    // ----------------------------------------------------
-    const planetsData = [
-      { name: 'Sun', size: 3.5, dist: 0, tilt: 0, orbitSpeed: 0, isSun: true, holoColor: new THREE.Color(0xfde047) },
-      { name: 'Mercury', size: 0.6, dist: 7, tilt: 0.03, orbitSpeed: 0.04, holoColor: new THREE.Color(0xf97316) },
-      { name: 'Venus', size: 1.1, dist: 11, tilt: 0.05, orbitSpeed: 0.015, holoColor: new THREE.Color(0xeab308) },
-      { name: 'Earth', size: 1.5, dist: 17, tilt: 0.409, orbitSpeed: 0.01, isEarth: true, holoColor: new THREE.Color(0x38bdf8) },
-      { name: 'Mars', size: 0.8, dist: 23, tilt: 0.439, orbitSpeed: 0.008, holoColor: new THREE.Color(0xef4444) },
-      { name: 'Jupiter', size: 3.0, dist: 34, tilt: 0.054, orbitSpeed: 0.004, holoColor: new THREE.Color(0xf97316) },
-      { name: 'Saturn', size: 2.4, dist: 46, tilt: 0.466, orbitSpeed: 0.003, hasRings: true, holoColor: new THREE.Color(0xa855f7) },
-      { name: 'Uranus', size: 1.8, dist: 58, tilt: 1.706, orbitSpeed: 0.002, holoColor: new THREE.Color(0x2dd4bf) },
-      { name: 'Neptune', size: 1.7, dist: 70, tilt: 0.494, orbitSpeed: 0.001, holoColor: new THREE.Color(0x3b82f6) }
-    ];
-
-    // ----------------------------------------------------
-    // HOLOGRAPHIC SHADER MATERIAL (SAFE TEXTURE BINDING)
-    // ----------------------------------------------------
-    function createHologramMaterial(color, isEarth = false) {
-      return new THREE.ShaderMaterial({
-        uniforms: {
-          uColor: { value: color },
-          uTime: { value: 0 },
-          dayTexture: { value: earthMap },
-          isEarth: { value: isEarth ? 1.0 : 0.0 }
-        },
-        vertexShader: `
-          varying vec3 vWorldNormal;
-          varying vec3 vWorldPosition;
-          varying vec2 vUv;
-
-          void main() {
-            vUv = uv;
-            vWorldNormal = normalize(mat3(modelMatrix) * normal);
-            vec4 worldPos = modelMatrix * vec4(position, 1.0);
-            vWorldPosition = worldPos.xyz;
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
-          }
-        `,
-        fragmentShader: `
-          uniform vec3 uColor;
-          uniform float uTime;
-          uniform sampler2D dayTexture;
-          uniform float isEarth;
-
-          varying vec3 vWorldNormal;
-          varying vec3 vWorldPosition;
-          varying vec2 vUv;
-
-          void main() {
-            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-            float fresnel = pow(1.0 - max(0.0, dot(vWorldNormal, viewDir)), 2.5);
-
-            float scanline = sin(vWorldPosition.y * 40.0 - uTime * 4.0) * 0.15 + 0.85;
-
-            vec3 baseColor = uColor;
-            if (isEarth > 0.5) {
-              vec3 texColor = texture2D(dayTexture, vUv).rgb;
-              baseColor = mix(uColor, texColor * 1.5, 0.4);
-            }
-
-            vec3 sunDir = normalize(-vWorldPosition);
-            float NdotL = max(0.25, dot(vWorldNormal, sunDir));
-
-            vec3 finalColor = baseColor * NdotL * scanline + uColor * fresnel * 1.8;
-            float alpha = 0.85 + fresnel * 0.15;
-
-            gl_FragColor = vec4(finalColor, alpha);
-          }
-        `,
-        transparent: true,
-        side: THREE.DoubleSide
-      });
-    }
-
-    const planetPivotMap = {};
-    const planetMeshMap = {};
-    const wireframeMeshList = [];
-    const orbitLinesList = [];
-    let earthRef = null, earthCloudsRef = null;
-    let windParticleSystem = null;
-
-    // ----------------------------------------------------
-    // BUILD THE HOLO SOLAR SYSTEM
-    // ----------------------------------------------------
-    planetsData.forEach(data => {
-      const pivot = new THREE.Group();
-      scene.add(pivot);
-      planetPivotMap[data.name] = pivot;
-
-      const geometry = new THREE.SphereGeometry(data.size, 48, 48);
-      let mesh;
-
-      if (data.isSun) {
-        const sunMaterial = new THREE.ShaderMaterial({
-          uniforms: { uTime: { value: 0 } },
-          vertexShader: `
-            varying vec2 vUv;
-            varying vec3 vNormal;
-            void main() {
-              vUv = uv;
-              vNormal = normalize(normalMatrix * normal);
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: `
-            uniform float uTime;
-            varying vec2 vUv;
-            varying vec3 vNormal;
-            void main() {
-              float scan = sin(vUv.y * 60.0 + uTime * 6.0) * 0.2 + 0.8;
-              vec3 sunColor = vec3(1.5, 1.2, 0.2) * scan;
-              gl_FragColor = vec4(sunColor, 0.95);
-            }
-          `,
-          transparent: true
-        });
-        mesh = new THREE.Mesh(geometry, sunMaterial);
-
-        const coronaGeo = new THREE.SphereGeometry(data.size * 1.2, 24, 24);
-        const coronaMat = new THREE.MeshBasicMaterial({ color: 0xfde047, wireframe: true, transparent: true, opacity: 0.35, depthWrite: false });
-        scene.add(new THREE.Mesh(coronaGeo, coronaMat));
-
-      } else {
-        const holoMat = createHologramMaterial(data.holoColor, data.isEarth);
-        mesh = new THREE.Mesh(geometry, holoMat);
-        if (data.isEarth) earthRef = mesh;
-
-        const wireframeMat = new THREE.MeshBasicMaterial({
-          color: data.holoColor,
-          wireframe: true,
-          transparent: true,
-          opacity: 0.25,
-          depthWrite: false
-        });
-        const wireframeMesh = new THREE.Mesh(geometry, wireframeMat);
-        wireframeMesh.position.x = data.dist;
-        wireframeMesh.rotation.z = data.tilt;
-        pivot.add(wireframeMesh);
-        wireframeMeshList.push(wireframeMesh);
-
-        if (data.hasRings) {
-          const ringGeo = new THREE.RingGeometry(data.size * 1.3, data.size * 2.3, 32);
-          ringGeo.rotateX(Math.PI / 2);
-          const ringMat = new THREE.MeshBasicMaterial({ color: data.holoColor, wireframe: true, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
-          const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-          ringMesh.position.x = data.dist;
-          ringMesh.rotation.z = data.tilt;
-          pivot.add(ringMesh);
-        }
-
-        const orbitGeo = new THREE.BufferGeometry();
-        const orbitPts = [];
-        for (let a = 0; a <= Math.PI * 2; a += 0.05) {
-          orbitPts.push(new THREE.Vector3(Math.cos(a) * data.dist, 0, Math.sin(a) * data.dist));
-        }
-        orbitGeo.setFromPoints(orbitPts);
-        const orbitLine = new THREE.Line(orbitGeo, new THREE.LineBasicMaterial({ color: data.holoColor, transparent: true, opacity: 0.4, depthWrite: false }));
-        scene.add(orbitLine);
-        orbitLinesList.push(orbitLine);
-      }
-
-      mesh.position.x = data.dist;
-      mesh.rotation.z = data.tilt;
-      pivot.add(mesh);
-      planetMeshMap[data.name] = mesh;
-    });
-
-    // EARTH REAL WIND PARTICLES HUD
-    const windCount = 400;
-    const windGeo = new THREE.BufferGeometry();
-    const windPositions = new Float32Array(windCount * 3);
-    const windSpeeds = new Float32Array(windCount);
-
-    for (let i = 0; i < windCount; i++) {
-      const lat = (Math.random() - 0.5) * Math.PI;
-      const lon = Math.random() * Math.PI * 2;
-      const r = 1.5 * 1.08;
-
-      windPositions[i*3] = r * Math.cos(lat) * Math.cos(lon);
-      windPositions[i*3+1] = r * Math.sin(lat);
-      windPositions[i*3+2] = r * Math.cos(lat) * Math.sin(lon);
-      windSpeeds[i] = 0.5 + Math.random() * 1.5;
-    }
-    windGeo.setAttribute('position', new THREE.BufferAttribute(windPositions, 3));
-    windGeo.setAttribute('aSpeed', new THREE.BufferAttribute(windSpeeds, 1));
-
-    const windMat = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uWindSpeed: { value: 16.0 } },
-      vertexShader: `
-        attribute float aSpeed;
-        uniform float uTime;
-        uniform float uWindSpeed;
-        varying float vAlpha;
-
-        void main() {
-          vec3 pos = position;
-          float angle = uTime * (0.2 + aSpeed * 0.05 * (uWindSpeed / 10.0));
-          float c = cos(angle); float s = sin(angle);
-          mat2 rot = mat2(c, -s, s, c);
-          pos.xz = rot * pos.xz;
-
-          vAlpha = 0.7 + 0.3 * sin(uTime * 4.0 + pos.y * 5.0);
-          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = (16.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        varying float vAlpha;
-        void main() {
-          float d = length(gl_PointCoord - vec2(0.5));
-          if (d > 0.5) discard;
-          gl_FragColor = vec4(0.22, 0.74, 0.97, (1.0 - d * 2.0) * vAlpha);
-        }
-      `,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    });
-    windParticleSystem = new THREE.Points(windGeo, windMat);
-    windParticleSystem.position.x = 17;
-    planetPivotMap['Earth'].add(windParticleSystem);
-
-    // EARTH CLOUDS HOLO
-    const celCloudShader = {
-      uniforms: { cloudTexture: { value: cloudMap }, uTime: { value: 0 } },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-      `,
-      fragmentShader: `
-        uniform sampler2D cloudTexture; uniform float uTime; varying vec2 vUv;
-        void main() {
-          vec2 animatedUv = vec2(vUv.x + uTime * 0.003, vUv.y);
-          float alpha = texture2D(cloudTexture, animatedUv).r;
-          if (alpha < 0.4) discard;
-          gl_FragColor = vec4(0.65, 0.95, 1.0, 0.6);
-        }
-      `,
-      transparent: true,
-      depthWrite: false
-    };
-    earthCloudsRef = new THREE.Mesh(new THREE.SphereGeometry(1.53, 48, 48), new THREE.ShaderMaterial(celCloudShader));
-    earthCloudsRef.position.x = 17;
-    planetPivotMap['Earth'].add(earthCloudsRef);
-
-    // BACKGROUND CYBERPUNK STARS
-    const starsCount = 1000;
-    const starsGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starsCount * 3);
-
-    for (let i = 0; i < starsCount * 3; i += 3) {
-      starPositions[i] = (Math.random() - 0.5) * 600;
-      starPositions[i+1] = (Math.random() - 0.5) * 600;
-      starPositions[i+2] = (Math.random() - 0.5) * 600;
-    }
-    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    const starsMaterial = new THREE.PointsMaterial({ color: 0x38bdf8, size: 1.2, transparent: true, opacity: 0.6, depthWrite: false });
-    scene.add(new THREE.Points(starsGeometry, starsMaterial));
-
-    // ----------------------------------------------------
-    // POST-PROCESSING PIPELINE WITH ROBUST COMPOSER FALLBACK
-    // ----------------------------------------------------
-    let composer = null;
-    let bloomPass = null;
-
-    try {
-      composer = new THREE.EffectComposer(renderer);
-      const renderPass = new THREE.RenderPass(scene, camera);
-      composer.addPass(renderPass);
-
-      bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.4, 0.6);
-      composer.addPass(bloomPass);
-    } catch (e) {
-      console.warn('EffectComposer fallback activated', e);
-      composer = null;
-    }
-
-    // Controls Event Listeners
-    let currentFocusName = 'Earth';
-    let isAutoRotating = true;
-    let orbitSpeedMultiplier = 1;
-
-    document.getElementById('targetFocus').addEventListener('change', (e) => {
-      currentFocusName = e.target.value;
-    });
-    document.getElementById('showHoloGrid').addEventListener('change', (e) => {
-      wireframeMeshList.forEach(m => m.visible = e.target.checked);
-    });
-    document.getElementById('showWindVectors').addEventListener('change', (e) => {
-      if (windParticleSystem) windParticleSystem.visible = e.target.checked;
-    });
-    document.getElementById('autoRotate').addEventListener('change', (e) => {
-      isAutoRotating = e.target.checked;
-    });
-    document.getElementById('showClouds').addEventListener('change', (e) => {
-      if (earthCloudsRef) earthCloudsRef.visible = e.target.checked;
-    });
-    document.getElementById('showOrbits').addEventListener('change', (e) => {
-      orbitLinesList.forEach(line => line.visible = e.target.checked);
-    });
-    document.getElementById('enableGlow').addEventListener('change', (e) => {
-      if (bloomPass) bloomPass.enabled = e.target.checked;
-    });
-    document.getElementById('rotSpeed').addEventListener('input', (e) => {
-      orbitSpeedMultiplier = parseFloat(e.target.value);
-    });
-
-    const clock = new THREE.Clock();
-
-    // ----------------------------------------------------
-    // ANIMATION LOOP
-    // ----------------------------------------------------
-    function animate() {
-      requestAnimationFrame(animate);
-
-      const elapsedTime = clock.getElapsedTime();
-
-      // Update Hologram Uniforms
-      planetsData.forEach(p => {
-        const mesh = planetMeshMap[p.name];
-        if (mesh && mesh.material.uniforms && mesh.material.uniforms.uTime) {
-          mesh.material.uniforms.uTime.value = elapsedTime;
-        }
-
-        const pivot = planetPivotMap[p.name];
-        if (isAutoRotating && p.orbitSpeed > 0) {
-          pivot.rotation.y += p.orbitSpeed * 0.3 * orbitSpeedMultiplier;
-        }
-
-        if (mesh) {
-          mesh.rotation.y += 0.01;
-        }
-      });
-
-      if (windParticleSystem && windParticleSystem.material.uniforms) {
-        windParticleSystem.material.uniforms.uTime.value = elapsedTime;
-        windParticleSystem.material.uniforms.uWindSpeed.value = realTimeWindSpeed;
-      }
-
-      if (earthCloudsRef && earthCloudsRef.material.uniforms) {
-        earthCloudsRef.material.uniforms.uTime.value = elapsedTime;
-      }
-
-      const targetMesh = planetMeshMap[currentFocusName];
-      if (targetMesh) {
-        const worldPos = new THREE.Vector3();
-        targetMesh.getWorldPosition(worldPos);
-
-        controls.target.lerp(worldPos, 0.08);
-      }
-
-      controls.update();
-
-      if (composer) {
-        composer.render();
-      } else {
-        renderer.render(scene, camera);
-      }
-    }
-    animate();
-
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      if (composer) composer.setSize(window.innerWidth, window.innerHeight);
-    });
-  </script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>
