@@ -28,7 +28,8 @@
         <div class="sub">Keplerian · Local-first · J2000 elements</div>
       </div>
       <div class="chip" id="wx-chip"><span class="dot warn"></span> TELEMETRY INIT</div>
-      <div class="chip"><span class="dot"></span> EPHEMERIS ONLINE</div>
+          <div class="chip" id="live-chip"><span class="dot"></span> LIVE WALL CLOCK · 1:1</div>
+          <div class="chip"><span class="dot"></span> EPHEMERIS ONLINE</div>
       <div class="spacer"></div>
       <div class="clock">
         <div id="clock-main">—</div>
@@ -77,29 +78,30 @@
           </div>
 
     <div class="panel center-transport">
-      <div class="speed-read" id="speed-read">1.0 d/s</div>
-      <div class="date-read" id="date-read">—</div>
-      <div class="row" style="justify-content:center">
-        <button type="button" id="btn-slower" title="Halve speed">⟦ slower</button>
-        <button type="button" id="btn-pause">Pause</button>
-        <button type="button" id="btn-faster" title="Double speed">faster ⟧</button>
-        <button type="button" id="btn-now">Now</button>
-      </div>
-      <div class="row" style="justify-content:center;margin-top:10px">
-        <label class="ctrl">Sim rate
-          <input type="range" id="speed" min="0" max="100" step="1" value="42" />
-        </label>
-      </div>
-      <div class="row" style="justify-content:center;margin-top:4px">
-        <span id="epoch-read" style="font-size:10px;color:var(--mute)"></span>
-      </div>
-    </div>
+          <div class="speed-read live" id="speed-read">LIVE · 1:1</div>
+          <div class="date-read" id="date-read">—</div>
+          <div class="row" style="justify-content:center">
+            <button type="button" id="btn-live" class="active" title="Lock epoch to wall clock">Live</button>
+            <button type="button" id="btn-slower" title="Halve speed (exits live)">⟦ slower</button>
+            <button type="button" id="btn-pause">Pause</button>
+            <button type="button" id="btn-faster" title="Double speed (exits live)">faster ⟧</button>
+            <button type="button" id="btn-now" title="Re-sync to now + stay live">Now</button>
+          </div>
+          <div class="row" style="justify-content:center;margin-top:10px">
+            <label class="ctrl">Scrub rate
+              <input type="range" id="speed" min="0" max="100" step="1" value="42" />
+            </label>
+          </div>
+          <div class="row" style="justify-content:center;margin-top:4px">
+            <span id="epoch-read" style="font-size:10px;color:var(--mute)"></span>
+          </div>
+        </div>
 
     <div class="panel">
       <h3>Instrument</h3>
       <div class="row" style="font-size:11px;color:var(--dim);line-height:1.5">
-        Mean J2000 Kepler elements · Newton-solved eccentric anomaly · Not a toy scale model — switch TRUE AU for linear distances. Radii exaggerated for readability in all modes.
-      </div>
+              Default is <b style="color:var(--ok)">LIVE</b> — wall clock 1:1, Kepler positions for <em>now</em>. Scrub rate exits live. Mean J2000 elements · Newton eccentric anomaly · radii exaggerated for readability.
+            </div>
       <div class="row" style="margin-top:8px;font-size:10px;color:var(--mute)">
         Vendor: three r160 · zero CDN runtime · open-meteo optional
       </div>

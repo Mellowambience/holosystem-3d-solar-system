@@ -4,7 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {
-  SUN, PLANETS, MOONS, SCALE_MODES, AU_KM,
+  SUN, PLANETS, MOONS, SCALE_MODES, AU_KM, J2000_JD,
   julianDay, dateFromJD, helioPositionAU,
   formatAU, formatKm, formatMass, formatPeriod,
 } from './ephemeris.js';
@@ -29,7 +29,10 @@ window.addEventListener('unhandledrejection', (e) => {
 // ---------------------------------------------------------------------------
 const state = {
   jd: julianDay(new Date()),
-  speed: 1, // simulated days per real second
+  /** days of sim time advanced per real second (ignored while live=true) */
+  speed: 1,
+  /** wall-clock lock: epoch = Date.now() every frame */
+  live: true,
   paused: false,
   scaleMode: 'educational',
   showOrbits: true,
@@ -40,6 +43,9 @@ const state = {
   focusId: 'earth',
   weather: null,
 };
+
+/** 1 real second = this many sim days at true 1:1 wall time */
+const REALTIME_DAYS_PER_SEC = 1 / 86400;
 
 const bodies = new Map(); // id -> runtime record
 let sunMesh, scene, camera, renderer, controls, composer, bloomPass;
@@ -655,12 +661,46 @@ function rescaleBodies() {
 // ---------------------------------------------------------------------------
 // Simulation step
 // ---------------------------------------------------------------------------
+function effectiveSpeedDaysPerSec() {
+  if (state.paused) return 0;
+  if (state.live) return REALTIME_DAYS_PER_SEC;
+  return state.speed;
+}
+
+function enterLive() {
+  state.live = true;
+  state.paused = false;
+  state.jd = julianDay(new Date());
+  const pauseBtn = document.getElementById('btn-pause');
+  if (pauseBtn) {
+    pauseBtn.classList.remove('active');
+    pauseBtn.textContent = 'Pause';
+  }
+  const liveBtn = document.getElementById('btn-live');
+  if (liveBtn) liveBtn.classList.add('active');
+  document.body.classList.add('is-live');
+  document.body.classList.remove('is-scrub');
+  syncTransportReadouts();
+}
+
+function exitLiveToScrub(newSpeed) {
+  if (newSpeed != null) state.speed = newSpeed;
+  state.live = false;
+  document.getElementById('btn-live')?.classList.remove('active');
+  document.body.classList.remove('is-live');
+  document.body.classList.add('is-scrub');
+}
+
 function updateBodies(dt) {
-  if (!state.paused) {
+  if (state.live && !state.paused) {
+    // Hard lock to wall clock — positions are "where the planets are now"
+    state.jd = julianDay(new Date());
+  } else if (!state.paused) {
     state.jd += state.speed * dt;
   }
 
   const mode = SCALE_MODES[state.scaleMode];
+  const spd = effectiveSpeedDaysPerSec();
 
   // planets
   for (const p of PLANETS) {
@@ -671,15 +711,19 @@ function updateBodies(dt) {
     const mapped = mode.mapA(r);
     rec.group.position.set((pos.x / r) * mapped, (pos.y / r) * mapped, (pos.z / r) * mapped);
 
-    // spin
-    const spin = ((2 * Math.PI) / (Math.abs(p.rotationHours) * 3600)) * (state.speed * 86400) * dt * Math.sign(p.rotationHours || 1);
-    // scale spin for visibility when speed is low — use at least a gentle spin at 1x
-    const spinVis = state.speed === 0 ? 0 : spin * Math.max(1, 40 / Math.max(0.05, Math.abs(state.speed)));
-    rec.mesh.rotation.y += (state.paused ? 0 : spinVis);
-    if (rec.clouds) rec.clouds.rotation.y += (state.paused ? 0 : spinVis * 1.15);
+    // Absolute sidereal spin from epoch (no drift). rotationHours may be negative (retrograde).
+    if (p.rotationHours) {
+      const hours = (state.jd - J2000_JD) * 24;
+      const turns = hours / p.rotationHours;
+      rec.mesh.rotation.y = turns * Math.PI * 2;
+      if (rec.clouds) {
+        // cloud layer slightly super-rotates for readability of motion in LIVE
+        rec.clouds.rotation.y = turns * Math.PI * 2 * 1.08;
+      }
+    }
   }
 
-  // moons
+  // moons — true mean longitude from JD
   for (const m of MOONS) {
     const rec = bodies.get(m.id);
     const parent = bodies.get(m.parent);
@@ -687,17 +731,27 @@ function updateBodies(dt) {
     rec.group.visible = state.showMoons;
     if (!state.showMoons) continue;
 
-    const ang = ((state.jd - 2451545.0) / m.period) * Math.PI * 2 + ((m.M0 || 0) * Math.PI) / 180;
-    // separation in parent-local units from current visual radius
+    const ang = ((state.jd - J2000_JD) / m.period) * Math.PI * 2 + ((m.M0 || 0) * Math.PI) / 180;
     const pr = parent.radiusScene || 1;
     const sep = Math.max(pr * 2.4, pr * (m.aParentRadii * 0.2));
     rec.group.position.set(Math.cos(ang) * sep, Math.sin(ang * 0.02) * sep * 0.05, Math.sin(ang) * sep);
-    rec.mesh.rotation.y += dt * 0.4;
+    // moon spin ~ tidally locked visual: face parent roughly
+    rec.mesh.rotation.y = ang + Math.PI;
+  }
+
+  // sun slow surface crawl from JD
+  const sunRec = bodies.get('sun');
+  if (sunRec) {
+    const hours = (state.jd - J2000_JD) * 24;
+    sunRec.mesh.rotation.y = (hours / SUN.rotationHours) * Math.PI * 2;
   }
 
   // sun light at origin
   const light = scene.getObjectByName('sunLight');
   if (light) light.position.set(0, 0, 0);
+
+  // unused but keeps lint-ish quiet if referenced later
+  void spd;
 }
 
 function updateLabels() {
@@ -873,10 +927,7 @@ function renderDossier(rec) {
     </div>
   `;
   root.querySelector('#btn-focus-sel')?.addEventListener('click', () => focusBody(d.id));
-  root.querySelector('#btn-now')?.addEventListener('click', () => {
-    state.jd = julianDay(new Date());
-    syncTransportReadouts();
-  });
+  root.querySelector('#btn-now')?.addEventListener('click', () => enterLive());
 }
 
 async function fetchWeather() {
@@ -954,52 +1005,98 @@ function syncTransportReadouts() {
   const date = dateFromJD(state.jd);
   const dateEl = document.getElementById('date-read');
   if (dateEl) {
-    dateEl.textContent = date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
+    // LIVE: show seconds so the clock visibly ticks
+    dateEl.textContent = state.live && !state.paused
+      ? date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+      : date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
   }
   const epochEl = document.getElementById('epoch-read');
-  if (epochEl) epochEl.textContent = `JD ${state.jd.toFixed(4)}`;
+  if (epochEl) {
+    epochEl.textContent = state.live
+      ? `JD ${state.jd.toFixed(5)} · WALL CLOCK`
+      : `JD ${state.jd.toFixed(4)} · SCRUB`;
+  }
 
   const sp = document.getElementById('speed-read');
   if (sp) {
-    const s = state.paused ? 0 : state.speed;
     let label;
-    if (s === 0) label = 'PAUSED';
-    else if (Math.abs(s) < 1) label = `${s.toFixed(2)} d/s`;
-    else if (Math.abs(s) < 100) label = `${s.toFixed(1)} d/s`;
-    else label = `${s.toFixed(0)} d/s`;
-    if (!state.paused && Math.abs(s) >= 365) label += `  (${(s / 365.25).toFixed(1)} yr/s)`;
+    if (state.paused) label = 'PAUSED';
+    else if (state.live) label = 'LIVE · 1:1';
+    else {
+      const s = state.speed;
+      if (Math.abs(s) < 1 / 86400) label = 'FROZEN';
+      else if (Math.abs(s - REALTIME_DAYS_PER_SEC) < 1e-12) label = '1:1 SCRUB';
+      else if (Math.abs(s) < 1) label = `${s.toFixed(3)} d/s`;
+      else if (Math.abs(s) < 100) label = `${s.toFixed(1)} d/s`;
+      else label = `${s.toFixed(0)} d/s`;
+      if (Math.abs(s) >= 365) label += `  (${(s / 365.25).toFixed(1)} yr/s)`;
+    }
     sp.textContent = label;
+    sp.classList.toggle('live', state.live && !state.paused);
   }
 
   const clockMain = document.getElementById('clock-main');
-  if (clockMain) clockMain.textContent = date.toISOString().replace('T', ' · ').replace(/\.\d+Z$/, ' UTC');
+  if (clockMain) {
+    clockMain.textContent = date.toISOString().replace('T', ' · ').replace(/\.\d+Z$/, ' UTC');
+  }
   const clockEpoch = document.getElementById('clock-epoch');
-  if (clockEpoch) clockEpoch.textContent = `JD ${state.jd.toFixed(3)} · ${SCALE_MODES[state.scaleMode].label}`;
+  if (clockEpoch) {
+    const mode = state.live && !state.paused ? 'LIVE' : state.paused ? 'PAUSED' : 'SCRUB';
+    clockEpoch.textContent = `JD ${state.jd.toFixed(4)} · ${mode} · ${SCALE_MODES[state.scaleMode].label}`;
+  }
+
+  // topbar live chip
+  const liveChip = document.getElementById('live-chip');
+  if (liveChip) {
+    if (state.live && !state.paused) {
+      liveChip.innerHTML = '<span class="dot"></span> LIVE WALL CLOCK · 1:1';
+      liveChip.classList.remove('scrub');
+    } else if (state.paused) {
+      liveChip.innerHTML = '<span class="dot warn"></span> CLOCK PAUSED';
+      liveChip.classList.add('scrub');
+    } else {
+      liveChip.innerHTML = '<span class="dot warn"></span> SCRUB MODE · NOT LIVE';
+      liveChip.classList.add('scrub');
+    }
+  }
+
+  document.getElementById('btn-live')?.classList.toggle('active', state.live && !state.paused);
+  document.body.classList.toggle('is-live', state.live && !state.paused);
+  document.body.classList.toggle('is-scrub', !state.live || state.paused);
 }
 
 function bindEvents() {
   document.getElementById('btn-pause').addEventListener('click', () => {
     state.paused = !state.paused;
+    // pausing freezes the live clock at the current instant but stays armed as live
     document.getElementById('btn-pause').classList.toggle('active', state.paused);
     document.getElementById('btn-pause').textContent = state.paused ? 'Resume' : 'Pause';
     syncTransportReadouts();
   });
-  document.getElementById('btn-now').addEventListener('click', () => {
-    state.jd = julianDay(new Date());
-    syncTransportReadouts();
-  });
+  document.getElementById('btn-live')?.addEventListener('click', () => enterLive());
+  document.getElementById('btn-now').addEventListener('click', () => enterLive());
   document.getElementById('btn-slower').addEventListener('click', () => {
-    state.speed = clampSpeed(state.speed / 2);
+    const base = state.live ? 1 : state.speed;
+    exitLiveToScrub(clampSpeed(base / 2));
     document.getElementById('speed').value = speedToSlider(state.speed);
+    state.paused = false;
+    document.getElementById('btn-pause').classList.remove('active');
+    document.getElementById('btn-pause').textContent = 'Pause';
     syncTransportReadouts();
   });
   document.getElementById('btn-faster').addEventListener('click', () => {
-    state.speed = clampSpeed(state.speed * 2 || 1);
+    const base = state.live ? REALTIME_DAYS_PER_SEC * 2 : (state.speed || REALTIME_DAYS_PER_SEC);
+    // from live, first faster step jumps to a visible scrub rate (~0.5 d/s)
+    const next = state.live ? 0.5 : clampSpeed(base * 2 || 1);
+    exitLiveToScrub(next);
     document.getElementById('speed').value = speedToSlider(state.speed);
+    state.paused = false;
+    document.getElementById('btn-pause').classList.remove('active');
+    document.getElementById('btn-pause').textContent = 'Pause';
     syncTransportReadouts();
   });
   document.getElementById('speed').addEventListener('input', (e) => {
-    state.speed = sliderToSpeed(+e.target.value);
+    exitLiveToScrub(sliderToSpeed(+e.target.value));
     state.paused = false;
     document.getElementById('btn-pause').classList.remove('active');
     document.getElementById('btn-pause').textContent = 'Pause';
@@ -1010,7 +1107,6 @@ function bindEvents() {
     state.scaleMode = e.target.value;
     document.getElementById('scaleDesc').textContent = SCALE_MODES[state.scaleMode].desc;
     rebuildOrbits();
-    // re-place bodies immediately
     updateBodies(0);
     focusBody(state.focusId, true);
     syncTransportReadouts();
@@ -1070,8 +1166,10 @@ function bindEvents() {
       ' ': () => document.getElementById('btn-pause').click(),
       '[': () => document.getElementById('btn-slower').click(),
       ']': () => document.getElementById('btn-faster').click(),
-      n: () => document.getElementById('btn-now').click(),
-      N: () => document.getElementById('btn-now').click(),
+      n: () => enterLive(),
+      N: () => enterLive(),
+      l: () => enterLive(),
+      L: () => enterLive(),
       h: () => document.body.classList.toggle('hud-hidden'),
       H: () => document.body.classList.toggle('hud-hidden'),
       f: () => focusBody(state.selectedId),
@@ -1193,7 +1291,12 @@ window.__HOLO = {
   bodies,
   focusBody,
   selectBody,
+  enterLive,
+  exitLiveToScrub,
+  julianDay,
   THREE,
 };
 
+// boot in LIVE wall-clock mode
+document.body.classList.add('is-live');
 init();

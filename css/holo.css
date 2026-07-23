@@ -392,6 +392,22 @@ label.ctrl select,
   color: var(--warn);
   margin-bottom: 6px;
 }
+.center-transport .speed-read.live {
+  color: var(--ok);
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.45);
+}
+#live-chip.scrub .dot {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
+#btn-live.active {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: var(--ok);
+  color: #d1fae5;
+}
+body.is-live #speed-read {
+  color: var(--ok);
+}
 
 .center-transport .date-read {
   font-size: 12px;

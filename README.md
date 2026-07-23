@@ -26,6 +26,13 @@ No build step. No CDN at runtime. Three.js r160 is vendored under `vendor/`.
 | No time meaning | Epoch clock (JD + UTC), speed 0.05 d/s → years/s, pause, jump-to-now |
 | Single layout | Educational / log / **true AU** scale modes |
 
+## Time model
+
+- **Default = LIVE** — epoch locked to the machine wall clock (1:1). Planet/moon positions are Kepler solutions for *now*.
+- **Scrub** — move the rate slider or press faster/slower to leave live and run accelerated time.
+- **Live / Now / `L` / `N`** — re-lock to wall clock.
+- Sidereal spin is absolute from J2000 (no drift), not a cosmetic spin boost.
+
 ## Controls
 
 | Input | Action |
